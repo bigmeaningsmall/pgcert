@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Playtesting &amp; Feedback — Student Survey Results</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { min-height: 100vh; background: #0f1118; }
+  body { font-family: 'DM Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState } = React;
+const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, PieChart, Pie, Cell } = Recharts;
+
+const C = {
+  bg:"#0f1118", card:"#1a1d2b", accent:"#6366f1", accentLight:"#818cf8",
+  accentSoft:"rgba(99,102,241,0.15)", warm:"#f59e0b", warmSoft:"rgba(245,158,11,0.15)",
+  rose:"#f43f5e", roseSoft:"rgba(244,63,94,0.15)", emerald:"#10b981",
+  emeraldSoft:"rgba(16,185,129,0.15)", sky:"#38bdf8", skySoft:"rgba(56,189,248,0.15)",
+  text:"#e2e8f0", textMuted:"#94a3b8", textDim:"#64748b", border:"#2d3148",
+};
+const PIE_C = ["#6366f1","#818cf8","#a5b4fc","#c7d2fe"];
+
+const gainsData = [
+  {name:"Feedback on design ideas",count:8},{name:"Identifying bugs/issues",count:6},
+  {name:"Improving game feel/mechanics",count:5},{name:"Understanding player experience",count:5},
+];
+const issuesData = [
+  {name:"Too vague",count:7},{name:"Not enough detail",count:5},
+  {name:"Not taken seriously",count:3},{name:"Too subjective",count:3},
+  {name:"Not enough time to discuss",count:2},
+];
+const clarityData = [
+  {name:"Moderately clear",value:6,pct:67},{name:"Slightly clear",value:2,pct:22},
+  {name:"Very clear & actionable",value:1,pct:11},
+];
+const radarData = [
+  {dimension:"Value recognised",A:4.2},{dimension:"Feedback clarity",A:2.4},
+  {dimension:"Session structure",A:2.1},{dimension:"Feedback literacy",A:2.0},
+  {dimension:"Acts on feedback",A:3.6},{dimension:"Overall value",A:3.8},
+];
+const overallValueData = [
+  {name:"Extremely valuable",value:3},{name:"Very valuable",value:2},
+  {name:"Moderately valuable",value:3},{name:"Slightly valuable",value:1},
+];
+const helpOrder = {"Extremely helpful":5,"Very helpful":4,"Moderately helpful":3,"Slightly helpful":2,"Not helpful at all":1};
+const interventionRaw = {
+  "Structured feedback forms":{"Extremely helpful":2,"Very helpful":5,"Moderately helpful":2},
+  "Clear guidance on what to test":{"Very helpful":4,"Moderately helpful":4,"Slightly helpful":1},
+  "More time for playtesting":{"Extremely helpful":2,"Very helpful":2,"Moderately helpful":4,"Slightly helpful":1},
+  "Better organisation":{"Extremely helpful":2,"Very helpful":4,"Moderately helpful":2,"Slightly helpful":1},
+  "Being assessed on iteration":{"Extremely helpful":1,"Very helpful":1,"Moderately helpful":3,"Slightly helpful":2,"Not helpful at all":2},
+  "Examples of good feedback":{"Extremely helpful":2,"Very helpful":2,"Moderately helpful":2,"Slightly helpful":3},
+};
+const interventionScore = Object.entries(interventionRaw).map(([name,counts])=>{
+  let total=0,n=0;
+  Object.entries(counts).forEach(([level,count])=>{total+=helpOrder[level]*count;n+=count;});
+  return {name:name.length>24?name.slice(0,22)+"…":name,fullName:name,score:+(total/n).toFixed(2)};
+}).sort((a,b)=>b.score-a.score);
+
+const qualQuotes = [
+  {text:"People avoid testing… too many people are testing it or no one is testing it.",theme:"Structure"},
+  {text:"Feedback can be too vague.",theme:"Quality"},
+  {text:"Need more structure, e.g. morning is prep and afternoon is playtesting.",theme:"Structure"},
+  {text:"Teaching people to be able to criticise better, or have less fear about criticising.",theme:"Literacy"},
+  {text:"Most people highlight issues that I already know instead of other areas.",theme:"Relevance"},
+];
+const themeFreq = [
+  {theme:"Feedback quality (vague, lacks detail)",color:C.rose,pct:78},
+  {theme:"Structure & organisation",color:C.warm,pct:56},
+  {theme:"Time constraints",color:C.sky,pct:44},
+  {theme:"Feedback literacy / critique culture",color:C.accent,pct:33},
+  {theme:"Redundant / already-known feedback",color:C.textDim,pct:22},
+];
+
+const StatCard = ({label,value,sub,color=C.accent}) => (
+  <div style={{background:C.card,borderRadius:16,padding:"24px 20px",border:`1px solid ${C.border}`,flex:"1 1 140px",minWidth:140,display:"flex",flexDirection:"column",gap:6}}>
+    <div style={{fontSize:12,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>{label}</div>
+    <div style={{fontSize:32,fontWeight:800,color,lineHeight:1}}>{value}</div>
+    {sub && <div style={{fontSize:13,color:C.textDim}}>{sub}</div>}
+  </div>
+);
+const SectionTitle = ({children,subtitle}) => (
+  <div style={{marginBottom:8,marginTop:32}}>
+    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:0,letterSpacing:"-0.02em"}}>{children}</h2>
+    {subtitle && <p style={{fontSize:13,color:C.textDim,margin:"4px 0 0"}}>{subtitle}</p>}
+  </div>
+);
+const ChartCard = ({children,style}) => (
+  <div style={{background:C.card,borderRadius:16,padding:20,border:`1px solid ${C.border}`,...style}}>{children}</div>
+);
+const CTooltip = ({active,payload,label}) => {
+  if(!active||!payload?.length) return null;
+  return (
+    <div style={{background:"#1e2235",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",fontSize:13,color:C.text}}>
+      <div style={{fontWeight:600,marginBottom:4}}>{label||payload[0]?.name}</div>
+      {payload.map((p,i)=><div key={i} style={{color:p.color||C.accentLight}}>{p.dataKey||"Count"}: {p.value}</div>)}
+    </div>
+  );
+};
+
+const TABS = ["Overview","Feedback Issues","Interventions","Student Voice"];
+
+function Dashboard() {
+  const [tab,setTab] = useState(0);
+  return (
+    <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"'DM Sans','Segoe UI',system-ui,sans-serif",padding:"24px 20px 48px",maxWidth:880,margin:"0 auto"}}>
+
+      {/* Header */}
+      <div style={{marginBottom:28}}>
+        <div style={{fontSize:11,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.12em",color:C.accentLight,marginBottom:6}}>CRE344 · Playtesting &amp; Feedback Study</div>
+        <h1 style={{fontSize:26,fontWeight:800,margin:0,lineHeight:1.2,letterSpacing:"-0.03em"}}>Student Survey Results</h1>
+        <p style={{fontSize:14,color:C.textMuted,margin:"6px 0 0"}}>n = 9 respondents · Game Development Modules · Ulster University</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:4,marginBottom:24,flexWrap:"wrap"}}>
+        {TABS.map((t,i)=>(
+          <button key={t} onClick={()=>setTab(i)} style={{
+            background:tab===i?C.accent:"transparent",color:tab===i?"#fff":C.textMuted,
+            border:tab===i?"none":`1px solid ${C.border}`,borderRadius:10,padding:"8px 16px",
+            fontSize:13,fontWeight:600,cursor:"pointer",transition:"all 0.2s",fontFamily:"inherit"
+          }}>{t}</button>
+        ))}
+      </div>
+
+      {/* ─── OVERVIEW ─── */}
+      {tab===0 && (
+        <div>
+          <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:8}}>
+            <StatCard label="Responses" value="9" sub="students surveyed" />
+            <StatCard label="Playtest frequently" value="56%" sub="5 of 9 students" color={C.emerald} />
+            <StatCard label="Feedback only moderate" value="67%" sub="6 of 9 students" color={C.warm} />
+            <StatCard label="Top issue" value="Vague" sub="78% cite vagueness" color={C.rose} />
+          </div>
+
+          <SectionTitle subtitle="What students report gaining from playtesting sessions">Gains from Playtesting</SectionTitle>
+          <ChartCard>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={gainsData} layout="vertical" margin={{left:10,right:20,top:5,bottom:5}}>
+                <XAxis type="number" domain={[0,9]} tick={{fill:C.textDim,fontSize:12}} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={160} tick={{fill:C.textMuted,fontSize:11}} axisLine={false} tickLine={false} />
+                <Tooltip content={<CTooltip />} />
+                <Bar dataKey="count" fill={C.accent} radius={[0,8,8,0]} barSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{fontSize:12,color:C.textDim,marginTop:8}}>Multi-select question · counts out of 9</div>
+          </ChartCard>
+
+          <SectionTitle subtitle="How students rate the overall value of playtesting">Overall Perceived Value</SectionTitle>
+          <ChartCard style={{display:"flex",alignItems:"center",justifyContent:"center",flexWrap:"wrap",gap:24}}>
+            <ResponsiveContainer width={240} height={240}>
+              <PieChart>
+                <Pie data={overallValueData} cx="50%" cy="50%" innerRadius={55} outerRadius={95} dataKey="value" paddingAngle={3} stroke="none">
+                  {overallValueData.map((_,i)=><Cell key={i} fill={PIE_C[i]} />)}
+                </Pie>
+                <Tooltip content={<CTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {overallValueData.map((d,i)=>(
+                <div key={d.name} style={{display:"flex",alignItems:"center",gap:10,fontSize:13}}>
+                  <div style={{width:12,height:12,borderRadius:3,background:PIE_C[i],flexShrink:0}} />
+                  <span style={{color:C.textMuted}}>{d.name}</span>
+                  <span style={{fontWeight:700,marginLeft:"auto"}}>{d.value}</span>
+                </div>
+              ))}
+            </div>
+          </ChartCard>
+
+          <SectionTitle subtitle="Gap between perceived value and feedback quality">Radar: Perception vs. Practice</SectionTitle>
+          <ChartCard style={{display:"flex",justifyContent:"center"}}>
+            <ResponsiveContainer width={360} height={300}>
+              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="72%">
+                <PolarGrid stroke={C.border} />
+                <PolarAngleAxis dataKey="dimension" tick={{fill:C.textMuted,fontSize:11}} />
+                <PolarRadiusAxis domain={[0,5]} tick={{fill:C.textDim,fontSize:10}} axisLine={false} />
+                <Radar dataKey="A" stroke={C.accent} fill={C.accent} fillOpacity={0.25} strokeWidth={2} />
+                <Tooltip />
+              </RadarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+          <div style={{fontSize:12,color:C.textDim,marginTop:6,fontStyle:"italic"}}>
+            Scores derived from ordinal scale mapping (1–5). The "dip" in clarity, structure, and literacy highlights the core pedagogical gap.
+          </div>
+        </div>
+      )}
+
+      {/* ─── FEEDBACK ISSUES ─── */}
+      {tab===1 && (
+        <div>
+          <SectionTitle subtitle="Multi-select: issues students experience with feedback received">Feedback Issues Reported</SectionTitle>
+          <ChartCard>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={issuesData} layout="vertical" margin={{left:10,right:20,top:5,bottom:5}}>
+                <XAxis type="number" domain={[0,9]} tick={{fill:C.textDim,fontSize:12}} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={150} tick={{fill:C.textMuted,fontSize:11}} axisLine={false} tickLine={false} />
+                <Tooltip content={<CTooltip />} />
+                <Bar dataKey="count" fill={C.rose} radius={[0,8,8,0]} barSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <SectionTitle subtitle="How clearly students rate the feedback they receive">Feedback Clarity Distribution</SectionTitle>
+          <ChartCard>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+              {clarityData.map((d,i)=>{
+                const cols = [C.warm,C.rose,C.emerald];
+                const bgs = [C.warmSoft,C.roseSoft,C.emeraldSoft];
+                return (
+                  <div key={d.name} style={{flex:"1 1 160px",background:bgs[i],borderRadius:14,padding:"20px 16px",border:`1px solid ${cols[i]}22`,textAlign:"center"}}>
+                    <div style={{fontSize:36,fontWeight:800,color:cols[i],lineHeight:1}}>{d.pct}%</div>
+                    <div style={{fontSize:13,color:C.textMuted,marginTop:6}}>{d.name}</div>
+                    <div style={{fontSize:12,color:C.textDim}}>{d.value} of 9</div>
+                  </div>
+                );
+              })}
+            </div>
+          </ChartCard>
+
+          <div style={{marginTop:24,background:C.roseSoft,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.rose}22`,fontSize:14,color:C.text,lineHeight:1.6}}>
+            <strong style={{color:C.rose}}>Key finding:</strong> Only 1 in 9 students rated feedback as "very clear and actionable." The dominant experience is feedback that is present but lacks the specificity needed to drive meaningful iteration — a classic feedback literacy gap.
+          </div>
+        </div>
+      )}
+
+      {/* ─── INTERVENTIONS ─── */}
+      {tab===2 && (
+        <div>
+          <SectionTitle subtitle="Mean helpfulness score (1–5 scale) for proposed improvements">Intervention Helpfulness Rankings</SectionTitle>
+          <ChartCard>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={interventionScore} layout="vertical" margin={{left:10,right:30,top:5,bottom:5}}>
+                <XAxis type="number" domain={[1,5]} tick={{fill:C.textDim,fontSize:12}} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={180} tick={{fill:C.textMuted,fontSize:11}} axisLine={false} tickLine={false} />
+                <Tooltip content={({active,payload})=>{
+                  if(!active||!payload?.length) return null;
+                  const d=payload[0].payload;
+                  return (<div style={{background:"#1e2235",border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",fontSize:13,color:C.text}}>
+                    <div style={{fontWeight:600}}>{d.fullName}</div>
+                    <div style={{color:C.accentLight}}>Mean score: {d.score}/5</div>
+                  </div>);
+                }} />
+                <Bar dataKey="score" radius={[0,8,8,0]} barSize={28}>
+                  {interventionScore.map((d,i)=>(<Cell key={i} fill={i===0?C.emerald:i<3?C.accent:C.textDim} />))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <SectionTitle subtitle="Detailed breakdown per intervention">Response Distribution Heatmap</SectionTitle>
+          <ChartCard style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"separate",borderSpacing:4,fontSize:12}}>
+              <thead>
+                <tr>
+                  <th style={{textAlign:"left",padding:"8px 10px",color:C.textDim,fontWeight:600}}>Intervention</th>
+                  {["Extremely","Very","Moderately","Slightly","Not at all"].map(h=>(
+                    <th key={h} style={{padding:"8px 6px",color:C.textDim,fontWeight:600,textAlign:"center",minWidth:60}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(interventionRaw).map(([name,counts])=>(
+                  <tr key={name}>
+                    <td style={{padding:"8px 10px",color:C.textMuted,fontWeight:500}}>{name}</td>
+                    {["Extremely helpful","Very helpful","Moderately helpful","Slightly helpful","Not helpful at all"].map(level=>{
+                      const v=counts[level]||0;
+                      const intensity=v/5;
+                      return (
+                        <td key={level} style={{textAlign:"center",padding:"8px 6px",fontWeight:700,borderRadius:8,
+                          background:v?`rgba(99,102,241,${0.15+intensity*0.6})`:"transparent",
+                          color:v?(intensity>0.6?"#fff":C.accentLight):C.textDim
+                        }}>{v||"–"}</td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ChartCard>
+
+          <div style={{marginTop:24,background:C.emeraldSoft,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.emerald}22`,fontSize:14,color:C.text,lineHeight:1.6}}>
+            <strong style={{color:C.emerald}}>Strongest mandate:</strong> Structured feedback forms scored highest, with no student rating them unhelpful. Being assessed on iteration was the most divisive — suggesting students value support structures over assessment pressure.
+          </div>
+        </div>
+      )}
+
+      {/* ─── STUDENT VOICE ─── */}
+      {tab===3 && (
+        <div>
+          <SectionTitle subtitle="Paraphrased themes from open-ended responses">Qualitative Insights</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {qualQuotes.map((q,i)=>(
+              <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`,borderLeft:`4px solid ${C.accent}`}}>
+                <div style={{display:"inline-block",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",background:C.accentSoft,color:C.accentLight,padding:"3px 10px",borderRadius:6,marginBottom:10}}>{q.theme}</div>
+                <div style={{fontSize:14,color:C.text,lineHeight:1.6,fontStyle:"italic"}}>"{q.text}"</div>
+              </div>
+            ))}
+          </div>
+
+          <SectionTitle subtitle="Thematic coding of open responses mapped to emerging themes">Theme Frequency</SectionTitle>
+          <ChartCard>
+            {themeFreq.map((t)=>(
+              <div key={t.theme} style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:13,color:C.textMuted}}>{t.theme}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:t.color}}>{t.pct}%</span>
+                </div>
+                <div style={{height:10,background:"#1e2235",borderRadius:6,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${t.pct}%`,background:t.color,borderRadius:6,transition:"width 0.6s ease"}} />
+                </div>
+              </div>
+            ))}
+          </ChartCard>
+
+          <div style={{marginTop:24,background:C.accentSoft,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.accent}22`,fontSize:14,color:C.text,lineHeight:1.6}}>
+            <strong style={{color:C.accentLight}}>Narrative thread:</strong> Students don't reject playtesting — they value it highly. The gap is between its perceived potential and the quality of feedback infrastructure around it. This is a pedagogical design problem, not a motivation problem.
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div style={{marginTop:48,paddingTop:20,borderTop:`1px solid ${C.border}`,fontSize:11,color:C.textDim,textAlign:"center"}}>
+        PHE707 · Using Evidence to Support Student Success · PG Cert HE · Ulster University
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Dashboard />);
+</script>
+</body>
+</html>
