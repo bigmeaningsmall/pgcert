@@ -1,2 +1,2 @@
 # pgcert
-a site for dumping PG Cert coursework and information
+a test site for dumping PG Cert coursework content and information
